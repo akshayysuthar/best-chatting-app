@@ -50,3 +50,5 @@ const Message = React.memo(({ message, isOwnMessage }) => (
 Message.displayName = "Message";
 
 export default Message;
+
+
