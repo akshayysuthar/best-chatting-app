@@ -46,4 +46,7 @@ const Message = React.memo(({ message, isOwnMessage }) => (
   </motion.div>
 ));
 
+// Set display name for the memoized component
+Message.displayName = "Message";
+
 export default Message;
