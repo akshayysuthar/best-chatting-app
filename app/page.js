@@ -1,181 +1,306 @@
 "use client";
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { useSupabaseClient } from "@supabase/auth-helpers-react";
+
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sun, Moon, LogOut, Send, Image, Smile } from "lucide-react";
+import { Plus, Image as ImageIcon, Settings, Trash2, Info } from "lucide-react";
 import { supabase } from "@/utils/supabase";
 import { signIn, useSession } from "next-auth/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import Link from "next/link";
 import Navbar from "@/components/Navbar";
-import Message from "@/components/Message";
 
-
-// Skeleton loading component
-const SkeletonLoading = () => (
-  <div className="animate-pulse flex flex-col space-y-4 mt-4">
-    {[...Array(3)].map((_, i) => (
-      <div key={i} className="flex items-center space-x-2">
-        <div className="rounded-full bg-muted h-10 w-10"></div>
-        <div className="flex-1 space-y-2 py-1">
-          <div className="h-4 bg-muted rounded w-3/4"></div>
-          <div className="h-4 bg-muted rounded"></div>
+const ChatCard = ({ chat, onImageChange, onBackgroundChange, onDelete }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    exit={{ opacity: 0, y: -20 }}
+    transition={{ duration: 0.3 }}
+  >
+    <Card className="h-full">
+      <CardHeader className="relative">
+        <CardTitle className="text-lg font-semibold">{chat.name}</CardTitle>
+        <div className="absolute top-2 right-2">
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <Settings className="h-4 w-4" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Chat Settings</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="chatImage" className="text-right">
+                    Chat Image
+                  </Label>
+                  <Input
+                    id="chatImage"
+                    type="file"
+                    accept="image/*"
+                    className="col-span-2"
+                    onChange={(e) => onImageChange(chat.id, e.target.files[0])}
+                  />
+                  <Button
+                    onClick={() => document.getElementById("chatImage").click()}
+                  >
+                    Upload
+                  </Button>
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="chatBackground" className="text-right">
+                    Chat Background
+                  </Label>
+                  <Input
+                    id="chatBackground"
+                    type="file"
+                    accept="image/*"
+                    className="col-span-2"
+                    onChange={(e) =>
+                      onBackgroundChange(chat.id, e.target.files[0])
+                    }
+                  />
+                  <Button
+                    onClick={() =>
+                      document.getElementById("chatBackground").click()
+                    }
+                  >
+                    Upload
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
-      </div>
-    ))}
-  </div>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <div className="flex items-center gap-2">
+          <Avatar className="h-10 w-10">
+            <AvatarImage src={chat.image_url} alt={chat.name} />
+            <AvatarFallback>{chat.name[0]}</AvatarFallback>
+          </Avatar>
+          <div className="flex-1 truncate">{chat.name}</div>
+        </div>
+        {chat.last_message && (
+          <div className="text-sm text-muted-foreground">
+            <div className="flex items-center gap-1">
+              <span>
+                {new Date(chat.last_message.created_at).toLocaleString()}
+              </span>
+            </div>
+            <div className="truncate">
+              <span className="font-medium">
+                {chat.last_message.user_name}:{" "}
+              </span>
+              {chat.last_message.content}
+            </div>
+          </div>
+        )}
+        <div className="flex justify-between">
+          <Link href={`/chat/${chat.id}`}>
+            <Button>Open Chat</Button>
+          </Link>
+          <Button
+            variant="destructive"
+            size="icon"
+            onClick={() => onDelete(chat.id)}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+        <Input
+          value={chat.invite_link}
+          readOnly
+          className="text-xs"
+          onClick={(e) => e.target.select()}
+        />
+      </CardContent>
+    </Card>
+  </motion.div>
 );
 
 export default function ChatApp() {
   const { data: session } = useSession();
-  const [messages, setMessages] = useState([]);
-  const [newMessage, setNewMessage] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [chats, setChats] = useState([]);
+  const [newChatName, setNewChatName] = useState("");
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [backgroundImage, setBackgroundImage] = useState("");
-  const [imageFile, setImageFile] = useState(null); // New state for image file
-  const messagesEndRef = useRef(null);
+  const [lastCommit, setLastCommit] = useState("");
+  const [showAppInfo, setShowAppInfo] = useState(true);
 
-  const fetchMessages = useCallback(async () => {
+  useEffect(() => {
+    if (session?.user?.email) {
+      fetchChats();
+      fetchLastCommit();
+    }
+  }, [session]);
+
+  useEffect(() => {
+    const interval = setInterval(deleteOldMessages, 24 * 60 * 60 * 1000); // Run daily
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchChats = async () => {
+    const { data, error } = await supabase
+      .from("chats")
+      .select(
+        `
+        *
+      `
+      )
+      .or(
+        `user1_email.eq.${session.user.email},user2_email.eq.${session.user.email}`
+      )
+      // .order("created_at", { foreignTable: "messages", ascending: false })
+      // .limit(1, { foreignTable: "messages" });
+
+    if (error) {
+      console.error("Error fetching chats:", error);
+    } else {
+      setChats(
+        data.map((chat) => ({
+          ...chat,
+          // last_message: chat.last_message[0],
+        }))
+      );
+    }
+  };
+
+  const fetchLastCommit = async () => {
     try {
-      const { data, error } = await supabase
-        .from("messages")
-        .select("*")
-        .order("created_at", { ascending: true });
-
-      if (error) throw error;
-      setMessages(data);
+      const response = await fetch(
+        "https://api.github.com/repos/akshayysuthar/best-chatting-app/commits"
+      );
+      const commits = await response.json();
+      if (commits.length > 0) {
+        setLastCommit(commits[0].commit.message);
+      }
     } catch (error) {
-      console.error("Error fetching messages:", error);
-    } finally {
-      setLoading(false);
+      console.error("Error fetching last commit:", error);
     }
-  }, [supabase]);
+  };
 
-  useEffect(() => {
-    if (session) {
-      fetchMessages();
-      const channel = supabase.channel("public:messages");
-      channel
-        .on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: "messages" },
-          (payload) => {
-            setMessages((currentMessages) => [...currentMessages, payload.new]);
-          }
-        )
-        .subscribe((status) => {
-          if (status === "SUBSCRIBED") {
-            console.log("Subscribed to real-time messages");
-          }
-        });
+  const createNewChat = async () => {
+    if (!newChatName.trim()) return;
 
-      return () => {
-        channel.unsubscribe();
-      };
+    const { data, error } = await supabase
+      .from("chats")
+      .insert({
+        name: newChatName,
+        user1_email: session.user.email,
+        invite_link: `${window.location.origin}/invite/${Math.random()
+          .toString(36)
+          .substring(2, 15)}`,
+      })
+      .select();
+
+    if (error) {
+      console.error("Error creating new chat:", error);
+    } else {
+      setChats([...chats, data[0]]);
+      setNewChatName("");
     }
-  }, [session, fetchMessages, supabase]);
+  };
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  const handleImageUpload = async (file) => {
-    if (!file) return null;
+  const handleChatImageChange = async (chatId, file) => {
+    if (!file) return;
 
     const fileExt = file.name.split(".").pop();
-    const fileName = `${session.user.id}-${Date.now()}.${fileExt}`;
+    const fileName = `${chatId}-${Date.now()}.${fileExt}`;
 
     const { data, error } = await supabase.storage
-      .from("chat-images") // Ensure you have a bucket named "chat-images"
+      .from("chat-images")
       .upload(fileName, file);
 
     if (error) {
-      console.error("Error uploading image:", error);
-      return null;
+      console.error("Error uploading chat image:", error);
+      return;
     }
 
-    // Get the public URL for the uploaded image
-    const { data: publicData, error: publicURLError } = supabase.storage
+    const { data: publicData } = supabase.storage
       .from("chat-images")
       .getPublicUrl(fileName);
 
-    if (publicURLError) {
-      console.error("Error getting public URL:", publicURLError);
-      return null;
-    }
+    const { error: updateError } = await supabase
+      .from("chats")
+      .update({ image_url: publicData.publicUrl })
+      .eq("id", chatId);
 
-    console.log("Public URL:", publicData.publicUrl); // Log the URL for debugging
-    return publicData.publicUrl;
+    if (updateError) {
+      console.error("Error updating chat image:", updateError);
+    } else {
+      fetchChats();
+    }
   };
 
-  const sendMessage = async (e) => {
-    e.preventDefault();
+  const handleChatBackgroundChange = async (chatId, file) => {
+    if (!file) return;
 
-    // Ensure there’s either a message or an image to send
-    if (!newMessage.trim() && !imageFile) return;
-    if (!session?.user) return;
+    const fileExt = file.name.split(".").pop();
+    const fileName = `${chatId}-bg-${Date.now()}.${fileExt}`;
 
-    let imageUrl = null;
+    const { data, error } = await supabase.storage
+      .from("chat-backgrounds")
+      .upload(fileName, file);
 
-    // If there’s an image file, upload it and get the public URL
-    if (imageFile) {
-      imageUrl = await handleImageUpload(imageFile);
-      setImageFile(null); // Reset imageFile after uploading
-
-      if (!imageUrl) {
-        console.error("Failed to upload image or retrieve public URL.");
-        return; // Prevent sending the message if image upload failed
-      }
+    if (error) {
+      console.error("Error uploading chat background:", error);
+      return;
     }
 
-    try {
-      const { data, error } = await supabase.from("messages").insert([
-        {
-          content: newMessage, // Save text content if available
-          user_id: session.user.id,
-          user_name: session.user.name,
-          user_email: session.user.email,
-          user_avatar: session.user.image,
-          image_url: imageUrl, // Save image URL to the database
-        },
-      ]);
+    const { data: publicData } = supabase.storage
+      .from("chat-backgrounds")
+      .getPublicUrl(fileName);
 
-      if (error) throw error;
+    const { error: updateError } = await supabase
+      .from("chats")
+      .update({ background_url: publicData.publicUrl })
+      .eq("id", chatId);
 
-      // Clear the message input and image file after sending
-      setNewMessage("");
-    } catch (error) {
-      console.error("Error sending message:", error);
+    if (updateError) {
+      console.error("Error updating chat background:", updateError);
+    } else {
+      fetchChats();
+    }
+  };
+
+  const handleChatDelete = async (chatId) => {
+    const { error } = await supabase.from("chats").delete().eq("id", chatId);
+
+    if (error) {
+      console.error("Error deleting chat:", error);
+    } else {
+      setChats(chats.filter((chat) => chat.id !== chatId));
+    }
+  };
+
+  const deleteOldMessages = async () => {
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+    const { error } = await supabase
+      .from("messages")
+      .delete()
+      .lt("created_at", oneWeekAgo.toISOString());
+
+    if (error) {
+      console.error("Error deleting old messages:", error);
     }
   };
 
   const toggleTheme = () => {
     setIsDarkMode((prevMode) => !prevMode);
-  };
-
-  const handleBackgroundChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setBackgroundImage(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleFileChange = (e) => {
-    const file = e.target.files[0]; // Get the selected file
-    if (file) {
-      setImageFile(file); // Store the file in state
-      setNewMessage(""); // Clear the text input (optional)
-
-      // Automatically send the message with the selected image
-      sendMessage(e);
-    }
   };
 
   if (!session) {
@@ -189,79 +314,79 @@ export default function ChatApp() {
   }
 
   return (
-    <div className={`flex flex-col h-screen ${isDarkMode ? "dark" : ""}`}>
+    <div className={`flex flex-col min-h-screen ${isDarkMode ? "dark" : ""}`}>
       <Navbar
         user={session.user}
         toggleTheme={toggleTheme}
         isDarkMode={isDarkMode}
       />
 
-      <div
-        className="flex-1 overflow-y-auto p-4 bg-background text-foreground"
-        style={
-          backgroundImage
-            ? {
-                backgroundImage: `url(${backgroundImage})`,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-              }
-            : {}
-        }
-      >
-        {loading ? (
-          <SkeletonLoading />
-        ) : (
+      <main className="flex-1 container mx-auto p-4">
+        <h1 className="text-3xl font-bold mb-6">
+          Welcome, {session.user.name}!
+        </h1>
+
+        <div className="mb-8">
+          <h2 className="text-2xl font-semibold mb-4">Create New Chat</h2>
+          <div className="flex gap-2">
+            <Input
+              value={newChatName}
+              onChange={(e) => setNewChatName(e.target.value)}
+              placeholder="Enter chat name"
+              className="flex-1"
+            />
+            <Button onClick={createNewChat}>
+              <Plus className="mr-2 h-4 w-4" /> Create Chat
+            </Button>
+          </div>
+        </div>
+
+        <h2 className="text-2xl font-semibold mb-4">Your Chats</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           <AnimatePresence>
-            {messages.map((message) => (
-              <Message
-                key={message.id}
-                message={message}
-                isOwnMessage={message.user_id === session.user.id}
+            {chats.map((chat) => (
+              <ChatCard
+                key={chat.id}
+                chat={chat}
+                onImageChange={handleChatImageChange}
+                onBackgroundChange={handleChatBackgroundChange}
+                onDelete={handleChatDelete}
               />
             ))}
           </AnimatePresence>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-
-      <form
-        onSubmit={sendMessage}
-        className="bg-background border-t border-border p-4"
-      >
-        <div className="flex space-x-4 items-center">
-          {/* Text Input */}
-          <Input
-            type="text"
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Type a message..."
-            className="rounded-lg flex-1"
-          />
-
-          {/* File Upload Button */}
-          <div className="relative">
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleFileChange}
-              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-            />
-            <div className="bg-secondary rounded-lg px-4 py-2 flex items-center justify-center cursor-pointer">
-              <Image className="w-5 h-5 text-foreground mr-2" />
-              <span className="text-foreground">Send Image</span>
-            </div>
-          </div>
-
-          {/* Send Button */}
-          <Button
-            type="submit"
-            size="icon"
-            className="rounded-full text-primary bg-secondary"
-          >
-            <Send className="w-5 h-5 text-white" />
-          </Button>
         </div>
-      </form>
+
+        {lastCommit && (
+          <div className="mt-8 text-sm text-muted-foreground">
+            Last update: {lastCommit}
+          </div>
+        )}
+      </main>
+
+      <Dialog open={showAppInfo} onOpenChange={setShowAppInfo}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Welcome to LiveChat</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p>
+              LiveChat is a free, end-to-end encrypted messaging app designed
+              for easy and secure communication.
+            </p>
+            <ul className="list-disc list-inside space-y-2">
+              <li>End-to-end encryption for your privacy</li>
+              <li>Image upload support</li>
+              <li>User-friendly interface</li>
+              <li>Create multiple chat rooms</li>
+              <li>Customizable chat backgrounds</li>
+              <li>Auto-deletion of week-old messages to save space</li>
+            </ul>
+            <p>
+              Get started by creating a new chat or joining an existing one!
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
