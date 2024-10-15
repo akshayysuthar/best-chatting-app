@@ -139,12 +139,48 @@ export default function ChatApp() {
   const [lastCommit, setLastCommit] = useState("");
   const [showAppInfo, setShowAppInfo] = useState(true);
 
+
+  
+  
   useEffect(() => {
-    if (session?.user?.email) {
-      fetchChats();
-      fetchLastCommit();
+  if (session?.user?.email) {
+    fetchChats();
+    fetchLastCommit();
+
+    const subscribeToMessages = () => {
+      supabase
+        .from('messages')
+        .on('INSERT', payload => {
+          handleNewMessage(payload.new);  // Notification logic
+        })
+        .subscribe();
+    };
+
+    subscribeToMessages();
+
+    // Request notification permission
+    if (Notification.permission !== 'granted') {
+      Notification.requestPermission();
     }
-  }, [session]);
+  }
+}, [session]);
+
+const handleNewMessage = (message) => {
+  if (Notification.permission === "granted") {
+    new Notification(`New message from ${message.user_name}`, {
+      body: message.content,
+    });
+  } else {
+    Notification.requestPermission().then(permission => {
+      if (permission === "granted") {
+        new Notification(`New message from ${message.user_name}`, {
+          body: message.content,
+        });
+      }
+    });
+  }
+};
+  
 
   useEffect(() => {
     const interval = setInterval(deleteOldMessages, 24 * 60 * 60 * 1000); // Run daily
