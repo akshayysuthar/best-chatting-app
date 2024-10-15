@@ -29,7 +29,6 @@ const ChatCard = ({ chat, onImageChange, onBackgroundChange, onDelete }) => (
   >
     <Card className="h-full">
       <CardHeader className="relative">
-        <CardTitle className="text-lg font-semibold">{chat.name}</CardTitle>
         <div className="absolute top-2 right-2">
           <Dialog>
             <DialogTrigger asChild>
@@ -156,6 +155,12 @@ export default function ChatApp() {
   };
 
   useEffect(() => {
+    if (session) {
+      fetchChats();
+    }
+  }, [session]);
+
+  useEffect(() => {
     const interval = setInterval(deleteOldMessages, 24 * 60 * 60 * 1000); // Run daily
     return () => clearInterval(interval);
   }, []);
@@ -165,25 +170,29 @@ export default function ChatApp() {
       .from("chats")
       .select(
         `
-    *,
-    last_message: messages (
-      user_name,
-      content,
-      created_at
-    )
-  `
+        *,
+        last_message: messages (
+          content,
+          created_at,
+          user_name
+        )
+      `
       )
       .or(
         `user1_email.eq.${session.user.email},user2_email.eq.${session.user.email}`
       )
-      .order("created_at", { ascending: false }) // Use messages.created_at
-      .limit(1, { foreignTable: "messages" }); // Limit to get the latest message
+      .order("created_at", { foreignTable: "messages", ascending: true })
+      .limit(1, { foreignTable: "messages" });
 
     if (error) {
       console.error("Error fetching chats:", error);
     } else {
-      console.log("Fetched Chats:", data); // Debug log to check the data structure
-      setChats(data);
+      setChats(
+        data.map((chat) => ({
+          ...chat,
+          last_message: chat.last_message[0],
+        }))
+      );
     }
   };
 
@@ -219,6 +228,7 @@ export default function ChatApp() {
       console.error("Error creating new chat:", error);
     } else {
       setChats([...chats, data[0]]);
+      fetchChats();
       setNewChatName("");
     }
   };
