@@ -1,8 +1,9 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Trash2 } from "lucide-react";
 
-const Message = React.memo(({ message, isOwnMessage }) => (
+const Message = React.memo(({ message, isOwnMessage, deleteMessage }) => (
   <motion.div
     initial={{ opacity: 0, y: 50 }}
     animate={{ opacity: 1, y: 0 }}
@@ -41,6 +42,16 @@ const Message = React.memo(({ message, isOwnMessage }) => (
         <p className="text-xs opacity-70 mt-1">
           {new Date(message.created_at).toLocaleTimeString()}
         </p>
+        {/* Delete button - visible only for own messages */}
+        {isOwnMessage && (
+          <button
+            onClick={() => deleteMessage(message.id)} // Call the delete function
+            className="mt-2 text-red-600 hover:text-red-800"
+            title="Delete message"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        )}
       </div>
     </div>
   </motion.div>
@@ -50,5 +61,3 @@ const Message = React.memo(({ message, isOwnMessage }) => (
 Message.displayName = "Message";
 
 export default Message;
-
-

@@ -35,6 +35,24 @@ export default function ChatPage({ params }) {
   const [chatName, setChatName] = useState("");
   const messagesEndRef = useRef(null);
 
+  const deleteMessage = async (messageId) => {
+    try {
+      const { error } = await supabase
+        .from("messages")
+        .delete()
+        .eq("id", messageId);
+
+      if (error) throw error;
+
+      // Remove the deleted message from the state
+      setMessages((currentMessages) =>
+        currentMessages.filter((message) => message.id !== messageId)
+      );
+    } catch (error) {
+      console.error("Error deleting message:", error);
+    }
+  };
+
   const fetchMessages = useCallback(async () => {
     try {
       const { data, error } = await supabase
@@ -246,6 +264,7 @@ export default function ChatPage({ params }) {
                   key={message.id}
                   message={message}
                   isOwnMessage={message.user_email === session.user.email}
+                  deleteMessage={deleteMessage} // Pass the delete function
                 />
               ))}
             </AnimatePresence>

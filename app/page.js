@@ -102,7 +102,7 @@ const ChatCard = ({ chat, onImageChange, onBackgroundChange, onDelete }) => (
             </div>
             <div className="truncate">
               <span className="font-medium">
-                {chat.last_message.user_name}:{" "}
+              {chat.last_message.user_name}:
               </span>
               {chat.last_message.content}
             </div>
@@ -156,24 +156,25 @@ export default function ChatApp() {
       .from("chats")
       .select(
         `
-        *
-      `
+    *,
+    last_message: messages (
+      user_name,
+      content,
+      created_at
+    )
+  `
       )
       .or(
         `user1_email.eq.${session.user.email},user2_email.eq.${session.user.email}`
       )
-      // .order("created_at", { foreignTable: "messages", ascending: false })
-      // .limit(1, { foreignTable: "messages" });
+      .order("created_at", { ascending: false }) // Use messages.created_at
+      .limit(1, { foreignTable: "messages" }); // Limit to get the latest message
 
     if (error) {
       console.error("Error fetching chats:", error);
     } else {
-      setChats(
-        data.map((chat) => ({
-          ...chat,
-          // last_message: chat.last_message[0],
-        }))
-      );
+      console.log("Fetched Chats:", data); // Debug log to check the data structure
+      setChats(data);
     }
   };
 
@@ -306,7 +307,7 @@ export default function ChatApp() {
   if (!session) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
-        <Button onClick={() => signIn()} size="lg">
+        <Button onClick={() => signIn("github")} size="lg">
           Sign in to join the chat
         </Button>
       </div>
