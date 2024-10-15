@@ -140,27 +140,7 @@ export default function ChatApp() {
   const [showAppInfo, setShowAppInfo] = useState(true);
 
 useEffect(() => {
-  if (session?.user?.email) {
-    fetchChats();
-    fetchLastCommit();
 
-    const subscribeToMessages = () => {
-      supabase
-        .from('messages')
-        .on('INSERT', payload => {
-          handleNewMessage(payload.new);  // Notification logic
-        })
-        .subscribe();
-    };
-
-    subscribeToMessages();
-
-    // Request notification permission
-    if (Notification.permission !== 'granted') {
-      Notification.requestPermission();
-    }
-  }
-}, [session]);
 
 const handleNewMessage = (message) => {
   if (Notification.permission === "granted") {
