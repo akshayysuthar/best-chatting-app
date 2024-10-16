@@ -11,11 +11,11 @@ const Message = React.memo(({ message, isOwnMessage, deleteMessage }) => (
     className={`flex ${isOwnMessage ? "justify-end" : "justify-start"} mb-4`}
   >
     <div
-      className={`flex ${
+      className={`flex items-baseline ${
         isOwnMessage ? "flex-row-reverse" : "flex-row"
       } items-start max-w-[80%]`}
     >
-      <Avatar className="w-12 h-12 items-baseline">
+      <Avatar className="w-12 h-12">
         <AvatarImage src={message.user_avatar} alt={message.user_name} />
         <AvatarFallback>{message.user_name?.charAt(0)}</AvatarFallback>
       </Avatar>
