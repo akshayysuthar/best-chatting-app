@@ -15,7 +15,7 @@ const Message = React.memo(({ message, isOwnMessage, deleteMessage }) => (
         isOwnMessage ? "flex-row-reverse" : "flex-row"
       } items-start max-w-[80%]`}
     >
-      <Avatar className="w-12 h-12">
+      <Avatar className="w-12 h-12 items-baseline">
         <AvatarImage src={message.user_avatar} alt={message.user_name} />
         <AvatarFallback>{message.user_name?.charAt(0)}</AvatarFallback>
       </Avatar>
