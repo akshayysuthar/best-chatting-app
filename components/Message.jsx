@@ -11,7 +11,7 @@ const Message = React.memo(({ message, isOwnMessage, deleteMessage }) => (
     className={`flex ${isOwnMessage ? "justify-end" : "justify-start"} mb-4`}
   >
     <div
-      className={`flex items-baseline ${
+      className={`flex ${
         isOwnMessage ? "flex-row-reverse" : "flex-row"
       } items-start max-w-[80%]`}
     >
@@ -22,8 +22,8 @@ const Message = React.memo(({ message, isOwnMessage, deleteMessage }) => (
       <div
         className={`mx-2 py-3 px-4 rounded-lg ${
           isOwnMessage
-            ? "bg-primary text-primary-foreground rounded-br-none"
-            : "bg-secondary text-secondary-foreground rounded-bl-none"
+            ? "bg-primary text-primary-foreground rounded-tr-none"
+            : "bg-secondary text-secondary-foreground rounded-tl-none"
         }`}
       >
         <p className="text-sm font-semibold mb-1">{message.user_name}</p>
