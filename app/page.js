@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Image as ImageIcon, Settings, Trash2, Info } from "lucide-react";
 import { supabase } from "@/utils/supabase";
-import { signIn, useSession } from "next-auth/react";
+import { signIn, signOut, useSession } from "next-auth/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -130,8 +130,58 @@ const ChatCard = ({ chat, onImageChange, onBackgroundChange, onDelete }) => (
   </motion.div>
 );
 
+const LoginForm = ({ onLogin }) => {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onLogin({ name, email });
+  };
+
+  return (
+    <Card className="w-[350px]">
+      <CardHeader>
+        <CardTitle>Sign In</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="name">Name</Label>
+            <Input
+              id="name"
+              type="text"
+              placeholder="Your Name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="your@email.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
+          <Button type="submit" className="w-full">Sign In with Name and Email</Button>
+        </form>
+      </CardContent>
+      <CardContent>
+        <Button onClick={() => signIn("github")} variant="outline" className="w-full">
+          Sign in with GitHub
+        </Button>
+      </CardContent>
+    </Card>
+  );
+};
+
 export default function ChatApp() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [chats, setChats] = useState([]);
   const [newChatName, setNewChatName] = useState("");
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -323,12 +373,26 @@ export default function ChatApp() {
     setIsDarkMode((prevMode) => !prevMode);
   };
 
+  const handleLogin = async (userData) => {
+    const { name, email } = userData;
+    // Here you would typically make an API call to your backend to authenticate the user
+    // For this example, we'll just set the session directly
+    const mockSession = {
+      user: { name, email }
+    };
+    // In a real application, you'd use a proper authentication method
+    // This is just a simplified example
+    signIn("credentials", { ...userData, redirect: false });
+  };
+
+  if (status === "loading") {
+    return <div>Loading...</div>;
+  }
+
   if (!session) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
-        <Button onClick={() => signIn("github")} size="lg">
-          Sign in to join the chat
-        </Button>
+        <LoginForm onLogin={handleLogin} />
       </div>
     );
   }
@@ -386,6 +450,7 @@ export default function ChatApp() {
       <Dialog open={showAppInfo} onOpenChange={setShowAppInfo}>
         <DialogContent>
           <DialogHeader>
+            
             <DialogTitle>Welcome to LiveChat</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
@@ -409,4 +474,4 @@ export default function ChatApp() {
       </Dialog>
     </div>
   );
-}
+              }
