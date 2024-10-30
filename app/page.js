@@ -130,13 +130,20 @@ const ChatCard = ({ chat, onImageChange, onBackgroundChange, onDelete }) => (
   </motion.div>
 );
 
-const LoginForm = ({ onLogin }) => {
+const LoginForm = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    onLogin({ name, email });
+    const result = await signIn("credentials", {
+      name,
+      email,
+      redirect: false,
+    });
+    if (result.error) {
+      console.error("Login error:", result.error);
+    }
   };
 
   return (
@@ -373,18 +380,6 @@ export default function ChatApp() {
     setIsDarkMode((prevMode) => !prevMode);
   };
 
-  const handleLogin = async (userData) => {
-    const { name, email } = userData;
-    // Here you would typically make an API call to your backend to authenticate the user
-    // For this example, we'll just set the session directly
-    const mockSession = {
-      user: { name, email }
-    };
-    // In a real application, you'd use a proper authentication method
-    // This is just a simplified example
-    signIn("credentials", { ...userData, redirect: false });
-  };
-
   if (status === "loading") {
     return <div>Loading...</div>;
   }
@@ -392,7 +387,7 @@ export default function ChatApp() {
   if (!session) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
-        <LoginForm onLogin={handleLogin} />
+        <LoginForm />
       </div>
     );
   }
@@ -417,6 +412,7 @@ export default function ChatApp() {
               value={newChatName}
               onChange={(e) => setNewChatName(e.target.value)}
               placeholder="Enter chat name"
+              
               className="flex-1"
             />
             <Button onClick={createNewChat}>
@@ -450,7 +446,6 @@ export default function ChatApp() {
       <Dialog open={showAppInfo} onOpenChange={setShowAppInfo}>
         <DialogContent>
           <DialogHeader>
-            
             <DialogTitle>Welcome to LiveChat</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
@@ -474,4 +469,4 @@ export default function ChatApp() {
       </Dialog>
     </div>
   );
-              }
+}
